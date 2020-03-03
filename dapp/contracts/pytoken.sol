@@ -17,8 +17,14 @@ contract Underlying is ERC20 {
 }
 
 contract Oracle {
+  uint256 price; 
+  function updatePrice(uint256 newPrice) public{
+    price = newPrice;
+  }
   function startTWAP() public {}
-  function endTWAP() public returns (uint256) {}
+  function endTWAP() public returns (uint256) {
+    return price;
+  }
 }
 
 contract pyToken is ERC20 {
@@ -63,7 +69,7 @@ contract pyToken is ERC20 {
   struct Repo {
     uint256 userCollateral;
     uint256 lockedCollateral;
-    uint256 normalisedDebt;
+    uint256 normalizedDebt;
     bool    lockedForLiquidation;
   }  
   mapping(address => Repo)  public repos;
@@ -71,6 +77,7 @@ contract pyToken is ERC20 {
   //Oracle
   uint256 startBorrowTime; 
   uint256 ONE_HOUR = 60*60;
+  uint256 startUnlockTime; 
 
   constructor ( 
                 address _underlying,
@@ -136,6 +143,10 @@ contract pyToken is ERC20 {
     return fmul(normalizedDebt, debtAccumulator, long);
   }
 
+  function debtInUnderlying(address usr) public view returns (uint256){
+    return fmul(repos[usr].normalizedDebt, debtAccumulator, long);
+  }
+
   function getCollateralBalance(address user) public view returns (uint256){
     return repos[user].userCollateral;
   }
@@ -185,9 +196,10 @@ contract pyToken is ERC20 {
     uint256 newDebt = fmul(accumulatedDebtInterestMultiplier - long, allDebt, long);
     uint256 feeIncome = fmul(newDebt, borrowFee, long);
     totalFeeIncome += feeIncome;
+    console.log("Fee Income '%i'", feeIncome);
     uint256 totalPyTokens = fmul(totalSupply(), rateAccumulator, short);
-    rateAccumulator = ((newDebt - feeIncome) + totalPyTokens) / fmul(totalSupply(), long, short);
-    lastBlockInterest = ((newDebt - feeIncome) + totalPyTokens) / totalPyTokens;
+    rateAccumulator = (((newDebt - feeIncome) + totalPyTokens)*long) / fmul(totalSupply(), long, short);
+    lastBlockInterest = (((newDebt - feeIncome) + totalPyTokens)*long) / totalPyTokens;
     lastUpdate = now; 
   }
 
@@ -232,11 +244,11 @@ contract pyToken is ERC20 {
     require(repos[msg.sender].userCollateral >= collateralToLock, "borrowCompare/collateralToLock-is-greater-than-userCollateral");
     // how are we handling collateral decimals?
     uint256 availableCollateral = repos[msg.sender].lockedCollateral + collateralToLock;
-    uint256 finalDebt = fmul(repos[msg.sender].normalisedDebt, debtAccumulator, long) + amountToBorrow;
+    uint256 finalDebt = fmul(repos[msg.sender].normalizedDebt, debtAccumulator, long) + amountToBorrow;
     uint256 usrRatio = finalDebt/availableCollateral;
-    uint256 compRatio = fmul(repos[comparisonRepo].normalisedDebt, debtAccumulator, long) / repos[comparisonRepo].lockedCollateral;
+    uint256 compRatio = fmul(repos[comparisonRepo].normalizedDebt, debtAccumulator, long) / repos[comparisonRepo].lockedCollateral;
     require(usrRatio < compRatio, "borrowCompare/comparison-to-comparison-repo-not-successful");
-    repos[msg.sender].normalisedDebt = repos[msg.sender].normalisedDebt + amountToBorrow/debtAccumulator;
+    repos[msg.sender].normalizedDebt = repos[msg.sender].normalizedDebt + amountToBorrow/debtAccumulator;
     repos[msg.sender].lockedCollateral += collateralToLock;
     repos[msg.sender].userCollateral -= collateralToLock;
     uint256 normalizedAmount = (amountToBorrow * long)/rateAccumulator;
@@ -257,10 +269,11 @@ contract pyToken is ERC20 {
     require(repos[msg.sender].userCollateral >= collateralToLock, "completeBorrow/collateralToLock-is-greater-than-userCollateral");
     // how are we handling collateral decimals?
     uint256 availableCollateral = repos[msg.sender].lockedCollateral + collateralToLock;
-    uint256 finalDebt = fmul(repos[msg.sender].normalisedDebt, debtAccumulator, long) + amountToBorrow;
-    uint256 collateralNeeded = fmul(finalDebt, collateralizationRatio, short) / twapPrice; 
+    uint256 finalDebt = fmul(repos[msg.sender].normalizedDebt, debtAccumulator, long) + amountToBorrow;
+    uint256 collateralNeeded = finalDebt * collateralizationRatio / twapPrice; 
+    console.log("collateralNeeded '%i' availableCollateral '%i'", collateralNeeded, availableCollateral);
     require(collateralNeeded < availableCollateral, "completeBorrow/insufficient-collateral-for-new-debt");
-    repos[msg.sender].normalisedDebt = repos[msg.sender].normalisedDebt + amountToBorrow/debtAccumulator;
+    repos[msg.sender].normalizedDebt = repos[msg.sender].normalizedDebt + (amountToBorrow * long)/debtAccumulator;
     repos[msg.sender].lockedCollateral += collateralToLock;
     repos[msg.sender].userCollateral -= collateralToLock;
     uint256 normalizedAmount = (amountToBorrow * long)/rateAccumulator;
@@ -269,6 +282,41 @@ contract pyToken is ERC20 {
     normalizedDebt += normalizedAmount;
   }
 
+  function preciseDiv(uint256 value, uint256 precision, uint256 divisor) public pure returns (uint z){
+    z = ((value + precision/2) * precision)/divisor; 
+  }
 
+  function mathTest(uint256 value) public {
+    uint256 normalizedAmount = (value * long)/rateAccumulator;
+    console.log("Normalized Amount '%i' Requested value '%i'", normalizedAmount, value);
+
+  }
+
+  function repay(address usr, uint256 amountToPayback) public {
+    uint256 normalizedPayback = (amountToPayback * long)/rateAccumulator;
+    //console.log("Normalized payback '%i' Requested tokens '%i' BalanceOf '%i", normalizedPayback, amountToPayback, balanceOf(msg.sender));
+    require(balanceOf(msg.sender) >= normalizedPayback, "repay/insufficient-funds-to-repay");
+    _burn(msg.sender, normalizedPayback);
+    uint256 debtCancelled = (amountToPayback * long) / debtAccumulator;
+    require(repos[usr].normalizedDebt >= debtCancelled, "repay/cannot-repay-more-than-debt");
+    repos[usr].normalizedDebt -= debtCancelled;
+  }
+
+  function startUnlock() public {
+    Oracle(oracle).startTWAP();
+    startUnlockTime = now;
+  }
+
+  function completeUnlock(uint256 collateralToUnLock) public {
+    uint256 twapPrice = Oracle(oracle).endTWAP();
+    require(now - startBorrowTime > ONE_HOUR, "completeUnlock/must-wait-an-hour-before-calling-completeUnlock");
+    uint256 availableCollateral = repos[msg.sender].lockedCollateral - collateralToUnLock;
+    uint256 finalDebt = fmul(repos[msg.sender].normalizedDebt, debtAccumulator, long);
+    uint256 collateralNeeded = finalDebt * collateralizationRatio / twapPrice; 
+    console.log("finalDebt '%i' collateralNeeded '%i'", finalDebt, collateralNeeded);
+    require(availableCollateral >= collateralNeeded, "completeUnlock/insufficient-collateral-to-complete-unlock");
+    repos[msg.sender].lockedCollateral -= collateralToUnLock;
+    repos[msg.sender].userCollateral += collateralToUnLock;
+  }
 
 }

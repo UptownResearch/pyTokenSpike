@@ -7,6 +7,10 @@ const Oracle = artifacts.require("Oracle");
 const helper = require('ganache-time-traveler');
 const SECONDS_IN_DAY = 86400;
 
+const ethers = require('ethers');
+utils = ethers.utils;
+
+
 
 const timestamp = (block = "latest", web3) => {
   return new Promise((resolve, reject) => {
@@ -146,8 +150,64 @@ contract("pyToken", accounts => {
 
     it("should accrueInterest", async function() {
       await pytokenInstance.accrueInterest();
+      var rateAccumulator = (await pytokenInstance.rateAccumulator()).toString();
+      console.log("rateAccumulator ", rateAccumulator);
+      var lastBlockInterest = (await pytokenInstance.lastBlockInterest()).toString();
+      console.log("lastBlockInterest", rateAccumulator);
     });
 
+
+    it("should borrow and repay pyTokens", async function() {
+      await pytokenInstance.addCollateral(accounts[3], web3.utils.toWei("20"),{
+        from: accounts[3],
+        });
+      await pytokenInstance.startBorrow({
+        from: accounts[3],
+        })
+      await helper.advanceTime(60*60);
+      await helper.advanceBlock();
+      await oracle.givenAnyReturnUint(web3.utils.toWei("2"));
+      await pytokenInstance
+        .completeBorrow(accounts[3], 
+                        web3.utils.toWei("5"), 
+                        web3.utils.toWei("10"), 
+                        {
+                          from: accounts[3]})
+      
+      var balance = (await pytokenInstance.balanceOf(accounts[3]));
+      console.log("pyTokens after borrow: ", web3.utils.fromWei(balance));
+      var rateAccumulator = (await pytokenInstance.rateAccumulator());
+      //divisor = utils.bigNumberify(10).pow(27);
+      //scaling = utils.bigNumberify(10).pow(9)
+      //.toString()
+      //b = utils.bigNumberify(balance.toString()).mul(scaling);
+      //r = utils.bigNumberify(rateAccumulator.toString());
+      //console.log(b.toString())
+      //console.log(r.toString())
+      //a = b.mul(r).add(divisor.div(2)).div(divisor)
+      //a = a.add(scaling.div(2)).div(scaling)
+      //out = a.toString();
+      //console.log(out );
+      await pytokenInstance.repay(accounts[3], web3.utils.toWei("5") , { from: accounts[3]});
+      var debt = web3.utils.fromWei((await pytokenInstance.debtInUnderlying(accounts[3])));
+      console.log("Debt after repay: ", debt);
+      //assert(balance == 5, "balance not equal to 5");
+    });
+
+    it("should unlock pyTokens", async function() {
+      await pytokenInstance.startUnlock({
+        from: accounts[3],
+        })
+      await helper.advanceTime(60*60);
+      await helper.advanceBlock();
+      await oracle.givenAnyReturnUint(web3.utils.toWei("2"));
+      await pytokenInstance
+        .completeUnlock(web3.utils.toWei("10"), 
+                        {
+                          from: accounts[3]})
+      result = await pytokenInstance.repos(accounts[3]);
+      console.log(result);
+    });
 
   })
 });
