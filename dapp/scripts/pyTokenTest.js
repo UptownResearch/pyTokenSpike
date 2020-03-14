@@ -2,6 +2,7 @@
 // when running the script with `buidler run <script>`: you'll find the Buidler
 // Runtime Environment's members available as global variable in that case.
 const env = require("@nomiclabs/buidler");
+var fs = require("fs");
 
 async function main() {
   // You can run Buidler tasks from a script.
@@ -22,8 +23,8 @@ async function main() {
   underlying = await Underlying.new();
   oracle = await Oracle.new();
   pytokenInstance = await pyToken.new( 
-    collateral.address,
     underlying.address,
+    collateral.address,
     oracle.address,
     "3162157215564487",
     web3.utils.toWei("1.5"),
@@ -36,6 +37,28 @@ async function main() {
   console.log("Underlying address:", underlying.address);
   console.log("Oracle address:", oracle.address);
   console.log("pyToken address:", pytokenInstance.address);
+  var addresses = {
+    collateral: collateral.address,
+    underlying: underlying.address,
+    oracle: oracle.address,
+    pytoken: pytokenInstance.address
+  };
+  console.log(JSON.stringify(addresses, null, 4));
+  await fs.writeFile("./artifacts/addresses.json", JSON.stringify(addresses, null, 4), (err) => {
+    if (err) {
+        console.error(err);
+        return;
+    };
+    console.log("Addresses file has been writted to ./artifacts/addresses.json");
+  });
+  fs.writeFileSync("./artifacts/addresses.json", JSON.stringify(addresses, null, 4), (err) => {
+    if (err) {
+        console.error(err);
+        return;
+    };
+    console.log("Addresses file has been writted to ./artifacts/addresses.json");
+  });
+
 }
 
 // We recommend this pattern to be able to use async/await everywhere

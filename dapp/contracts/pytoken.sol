@@ -17,7 +17,7 @@ contract Underlying is ERC20 {
 }
 
 contract Oracle {
-  uint256 price; 
+  uint256 public price; 
   function updatePrice(uint256 newPrice) public{
     price = newPrice;
   }
@@ -103,7 +103,7 @@ contract pyToken is ERC20 {
       totalFeeIncome = 0;
       rateAccumulator = long;
       debtAccumulator = long;
-      lastBlockInterest = 0;
+      lastBlockInterest = long;
       lastUpdate = now;
       lastRateUpdate = now;
       debtRate = long;
