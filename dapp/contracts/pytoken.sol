@@ -38,15 +38,17 @@ contract pyToken is ERC20 {
   // uint8 public decimals = 18;
 
 
-  // ERC-20 parameters
+  // Associated contracts
   address public underlying;
   address public collateral; 
   address public oracle; 
+  address public pairPyToken; 
+  address private _creator;
 
   // interest parameters
   uint256 public interestUpdateAmount;
   uint256 public collateralizationRatio;
-  uint256 public reservesTarget;
+  uint256 public liquidityTarget;
   uint256 public adjustmentFreeWindow;
   uint256 public debtRateLimit;
 
@@ -59,6 +61,7 @@ contract pyToken is ERC20 {
   uint256 public borrowFee;
   uint256 public totalFeeIncome;
   uint256 public lastBlockInterest;
+  uint256 public lastBlockInterestPeriods;
   uint256 public lastUpdate;
   uint256 public lastRateUpdate;
 
@@ -86,7 +89,7 @@ contract pyToken is ERC20 {
                 uint256 _interestUpdateAmount,
                 uint256 _collateralizationRatio,
                 uint256 _debtRateLimit,
-                uint256 _reservesTarget,
+                uint256 _liquidityTarget,
                 uint256 _adjustmentFreeWindow,
                 uint256 _borrowFee 
               )  public {
@@ -96,7 +99,7 @@ contract pyToken is ERC20 {
       interestUpdateAmount = _interestUpdateAmount;
       collateralizationRatio = _collateralizationRatio;
       debtRateLimit = _debtRateLimit;
-      reservesTarget = _reservesTarget;
+      liquidityTarget = _liquidityTarget;
       adjustmentFreeWindow = _adjustmentFreeWindow;
       borrowFee = _borrowFee;
 
@@ -108,11 +111,19 @@ contract pyToken is ERC20 {
       lastRateUpdate = now;
       debtRate = long;
 
+      _creator = msg.sender;
+
   }
+
+  function setPairPyToken(address _pyToken) public {
+    require(msg.sender == _creator, "setPairPyToken/only-callable-by-factory");
+    pairPyToken = _pyToken;
+  }
+
 
   // Math functions
   function simpleInterest(uint rate, uint exponent, uint ONE) public returns(uint256) {
-    uint256 half = ONE / 2;
+    //uint256 half = ONE / 2;
     //return ONE + rate * exponent + half*rate*rate*exponent*(exponent - 1)/(ONE*ONE); 
     return ONE + (rate * exponent); 
   }
@@ -192,12 +203,15 @@ contract pyToken is ERC20 {
     uint256 accumulatedDebtInterestMultiplier = simpleInterest(debtRate - long, periods, long);
     console.log("ADIMs '%i'", accumulatedDebtInterestMultiplier);
     console.log("DebtAccumulator  '%i'", debtAccumulator);
+    uint256 oldDebtAccumulator = debtAccumulator;
     debtAccumulator = fmul(accumulatedDebtInterestMultiplier, debtAccumulator, long);
     console.log("DebtAccumulator  '%i'", debtAccumulator);
     uint256 allDebt = fmul(normalizedDebt, debtAccumulator, short);
     console.log("All Debt  '%i'", allDebt);
     uint256 newDebt = fmul(accumulatedDebtInterestMultiplier - long, allDebt, long);
     console.log("New Debt  '%i'", newDebt);
+    uint256 newDebt2 = fmul(debtAccumulator - oldDebtAccumulator, normalizedDebt, short);
+    console.log("New Debt 2  '%i'", newDebt);
     uint256 feeIncome = fmul(newDebt, borrowFee, short);
     totalFeeIncome += feeIncome;
     console.log("Fee Income '%i'", feeIncome);
@@ -207,6 +221,7 @@ contract pyToken is ERC20 {
     console.log("Total Supply '%i'", totalSupply());
     console.log("Rate Accumulator '%i'", rateAccumulator);
     lastBlockInterest = (((newDebt - feeIncome) + totalPyTokens)*long) / totalPyTokens;
+    lastBlockInterestPeriods = periods;
     console.log("Last Block Interest '%i'", lastBlockInterest);
     lastUpdate = now; 
   }
@@ -215,8 +230,8 @@ contract pyToken is ERC20 {
     if (lastRateUpdate >= now || totalSupply() == 0) return;
     uint256 imbalance = getReserveRatio();
     int256 updateRate;
-    if (imbalance > reservesTarget)      updateRate = -int(interestUpdateAmount);
-    else if (imbalance < reservesTarget) updateRate =  int(interestUpdateAmount);
+    if (imbalance > liquidityTarget)      updateRate = -int(interestUpdateAmount);
+    else if (imbalance < liquidityTarget) updateRate =  int(interestUpdateAmount);
     else updateRate = 0; 
     console.log("Update Rate");
     console.logInt(updateRate);
@@ -232,7 +247,7 @@ contract pyToken is ERC20 {
 
   function addCollateral(address user, uint256 amount) public {
     //accrueInterest();
-    //updateRates();
+    //updateRates(); 
     require(int(amount) >= 0, "addCollateral/overflow");
     require(ERC20(collateral).transferFrom(msg.sender, address(this), amount), "addCollateral/failed-transfer");
     repos[user].userCollateral += amount;

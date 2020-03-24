@@ -191,7 +191,7 @@ contract("pyToken", accounts => {
       await pytokenInstance.repay(accounts[3], web3.utils.toWei("5") , { from: accounts[3]});
       var debt = web3.utils.fromWei((await pytokenInstance.debtInUnderlying(accounts[3])));
       console.log("Debt after repay: ", debt);
-      //assert(balance == 5, "balance not equal to 5");
+      assert(debt == 0, "debt not equal to 0");
     });
 
     it("should unlock pyTokens", async function() {
@@ -201,12 +201,21 @@ contract("pyToken", accounts => {
       await helper.advanceTime(60*60);
       await helper.advanceBlock();
       await oracle.givenAnyReturnUint(web3.utils.toWei("2"));
+      userCollateral = (await pytokenInstance.repos(accounts[3]))['userCollateral'];
+      console.log("User Collateral", userCollateral.toString());
+      lockedCollateral = (await pytokenInstance.repos(accounts[3]))['lockedCollateral'];
+      console.log("Locked Collateral", lockedCollateral.toString());
       await pytokenInstance
         .completeUnlock(web3.utils.toWei("10"), 
                         {
                           from: accounts[3]})
+      userCollateralAfter = (await pytokenInstance.repos(accounts[3]))['userCollateral'];
+      lockedCollateralAfter = (await pytokenInstance.repos(accounts[3]))['lockedCollateral'];
       result = await pytokenInstance.repos(accounts[3]);
-      console.log(result);
+      //console.log(result);
+      console.log((userCollateralAfter - userCollateral).toString())
+      console.log(web3.utils.toWei("10"))
+      assert((userCollateralAfter - userCollateral).toString() == web3.utils.toWei("10") , "Collateral not correctly unlocked");
     });
 
   })

@@ -26,7 +26,7 @@ async function main() {
     underlying.address,
     collateral.address,
     oracle.address,
-    "3162157215564487",
+    "9162157215564487",
     web3.utils.toWei("1.5"),
     "2000000000000000000000000000",
     web3.utils.toWei("0.3"),
@@ -44,13 +44,6 @@ async function main() {
     pytoken: pytokenInstance.address
   };
   console.log(JSON.stringify(addresses, null, 4));
-  await fs.writeFile("./artifacts/addresses.json", JSON.stringify(addresses, null, 4), (err) => {
-    if (err) {
-        console.error(err);
-        return;
-    };
-    console.log("Addresses file has been writted to ./artifacts/addresses.json");
-  });
   fs.writeFileSync("./artifacts/addresses.json", JSON.stringify(addresses, null, 4), (err) => {
     if (err) {
         console.error(err);
