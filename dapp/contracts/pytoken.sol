@@ -136,6 +136,10 @@ contract pyToken is ERC20 {
     z = mul(x, y) / ONE;
   }
 
+  function preciseDiv(uint256 value, uint256 precision, uint256 divisor) public pure returns (uint z){
+    z = ((value + precision/2) * precision)/divisor; 
+  }
+
   // Transfer functions
 
   function transferUnderlying(address sender, address recipient, uint256 amount) public {
@@ -305,9 +309,7 @@ contract pyToken is ERC20 {
     normalizedDebt += normalizedAmount;
   }
 
-  function preciseDiv(uint256 value, uint256 precision, uint256 divisor) public pure returns (uint z){
-    z = ((value + precision/2) * precision)/divisor; 
-  }
+
 
   function mathTest(uint256 value) public {
     uint256 normalizedAmount = (value * long)/rateAccumulator;
