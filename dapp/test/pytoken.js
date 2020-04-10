@@ -46,8 +46,8 @@ contract("pyToken", accounts => {
       oracle = await MockContract.new();
       
       pytokenInstance = await pyToken.new( 
-        collateral.address,
         underlying.address,
+        collateral.address,
         oracle.address,
         "3162157215564487",
         web3.utils.toWei("1.5"),

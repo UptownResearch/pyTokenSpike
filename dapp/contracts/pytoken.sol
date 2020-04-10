@@ -2,6 +2,8 @@ pragma solidity ^0.5.1;
 
 import "openzeppelin-solidity/contracts/token/ERC20/ERC20.sol";
 import "@nomiclabs/buidler/console.sol";
+import "./pytokenFactory.sol";
+import "./pyoracle.sol";
 
 contract Collateral is ERC20 {
     function mint(uint amount) public {
@@ -51,6 +53,7 @@ contract pyToken is ERC20 {
   uint256 public liquidityTarget;
   uint256 public adjustmentFreeWindow;
   uint256 public debtRateLimit;
+  uint256 public borrowFee;
 
   // Interest Rate variables
   uint256 public rateAccumulator;  
@@ -58,7 +61,7 @@ contract pyToken is ERC20 {
   uint256 public debtRate;
   uint256 public normalizedDebt;
   uint256 public bonus;
-  uint256 public borrowFee;
+
   uint256 public totalFeeIncome;
   uint256 public lastBlockInterest;
   uint256 public lastBlockInterestPeriods;
@@ -75,7 +78,14 @@ contract pyToken is ERC20 {
     uint256 normalizedDebt;
     bool    lockedForLiquidation;
   }  
+
+  struct Liquidation {
+    bool    lockedForLiquidation;
+    address lockedBy; 
+  } 
+
   mapping(address => Repo)  public repos;
+  mapping(address => Liquidation) public liquidations; 
 
   //Oracle
   uint256 startBorrowTime; 
@@ -343,5 +353,27 @@ contract pyToken is ERC20 {
     repos[msg.sender].lockedCollateral -= collateralToUnLock;
     repos[msg.sender].userCollateral += collateralToUnLock;
   }
+
+ /** 
+  function startLiquidation(address userToLiquidate) public {
+    require(repos[user].normalizedDebt > 0, "startLiquidiation/repo-has-no-debt");
+    pyOracle().read()
+    liquidations[user].lockedForLiquidation = true; 
+    liquidations[user].lockedBy = msg.sender; 
+    //TODO: Lock Funds
+  }
+
+  function completeLiquidation(address userToLiquidate) public {
+
+    uint256 price = pyOracle().read() 
+    uint256 debt = fmul(repos[userToLiquidate].normalizedDebt, debtAccumulator, long) + amountToBorrow;
+    uint256 collateralNeeded = debt * collateralizationRatio / repos[msg.sender].lockedCollateral; 
+    if (price < liquidationPrice) {
+
+    }
+
+  }
+  */
+
 
 }
