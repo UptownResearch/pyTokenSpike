@@ -3,17 +3,20 @@
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
-  },
   "author": "",
   "license": "ISC",
+  "scripts": {
+    "lint": "solium -d contracts",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
   "devDependencies": {
     "@gnosis.pm/mock-contract": "^3.0.8",
     "@nomiclabs/buidler": "^1.2.0",
     "@nomiclabs/buidler-truffle5": "^1.1.2",
     "@nomiclabs/buidler-web3": "^1.1.2",
     "builder-react-component-dev": "^0.4.2",
+    "eth-gas-reporter": "0.2.16",
+    "ethlint": "1.2.5",
     "mocha": "^7.1.0",
     "web3": "^1.2.6"
   },
@@ -25,3 +28,5 @@
     "root": "github:nomiclabs/buidler#v1.2.0"
   }
 }
+
+
