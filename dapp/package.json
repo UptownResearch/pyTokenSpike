@@ -4,7 +4,6 @@
   "description": "",
   "main": "index.js",
   "author": "",
-  "license": "ISC",
   "scripts": {
     "lint": "solium -d contracts",
     "test": "echo \"Error: no test specified\" && exit 1"
