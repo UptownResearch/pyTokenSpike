@@ -9,7 +9,7 @@ contract Oracle {
     constructor ( 
             address _underlying,
             address _collateral
-    ){
+    ) public {
         underlying = _underlying;
         collateral = _collateral;
     }
