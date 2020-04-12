@@ -57,26 +57,25 @@ contract pyToken is ERC20 {
     address public pairPyToken; // pyTokens are deployed in pairs: ETH-DAI and DAI-ETH, for example.
     address private _creator; // Let's use Ownable.
 
-    // interest parameters - are these all long?
-    uint256 public interestUpdateAmount;
-    uint256 public collateralizationRatio;
+    // interest parameters - All are short
+    uint256 public interestUpdateAmount; 
+    uint256 public collateralizationRatio; 
     uint256 public liquidityTarget;
     uint256 public adjustmentFreeWindow;
     uint256 public debtRateLimit;
     uint256 public borrowFee;
 
     // Interest Rate variables - are these all long?
-    uint256 public rateAccumulator;
-    uint256 public debtAccumulator;
-    uint256 public debtRate;
-    uint256 public normalizedDebt;
-    uint256 public bonus;
+    uint256 public rateAccumulator; //long
+    uint256 public debtAccumulator; //long
+    uint256 public debtRate; //short
+    uint256 public normalizedDebt; //short
 
-    uint256 public totalFeeIncome; // currency amount?
-    uint256 public lastBlockInterest; // long
-    uint256 public lastBlockInterestPeriods;
-    uint256 public lastUpdate;
-    uint256 public lastRateUpdate;
+    uint256 public totalFeeIncome; // currency amount? yes, currency amounts are short
+    uint256 public lastBlockInterest; // long - actually, i think this is short
+    uint256 public lastBlockInterestPeriods; // integer number (not fixed point)
+    uint256 public lastUpdate; // timestamp
+    uint256 public lastRateUpdate; // timestamp
 
     // value held in contract
     uint256 public underlyingHeld; // currency amount
@@ -144,11 +143,9 @@ contract pyToken is ERC20 {
     }
 
     // Math functions
-    /// @dev Simple Interest is A = P(1 + rt). Rename to something like compoundInterestRate?
-    function simpleInterest(uint rate, uint exponent, uint unit) public returns(uint256) { // Rename exponent to periods?
-        //uint256 half = unit / 2;
-        //return unit + rate * exponent + half*rate*rate*exponent*(exponent - 1)/(unit*unit);
-        return unit + (rate * exponent);
+    /// @dev Compounds interest for a number of periods using the binomial approximation 
+    function compoundInterestRate(uint rate, uint periods, uint unit) public returns(uint256) { // Rename exponent to periods?
+        return unit + (rate * periods);
     }
 
     /// @dev Overflow protected multiplication
@@ -161,7 +158,7 @@ contract pyToken is ERC20 {
         z = mul(x, y) / unit;
     }
 
-    /// @dev What does this do? It's unused.
+    /// @dev Divide and round up. Remove in the future--not used. 
     function preciseDiv(uint256 value, uint256 precision, uint256 divisor) public pure returns (uint z){
         z = ((value + precision/2) * precision)/divisor;
     }
@@ -299,7 +296,7 @@ contract pyToken is ERC20 {
             "withdrawCollateral/failed-transfer"
         );
     }
-
+    
     /// @dev Borrow by pointing to a valid repo with a lower liquidation price
     function borrowCompare(
         address comparisonRepo,
@@ -329,6 +326,7 @@ contract pyToken is ERC20 {
         normalizedDebt += normalizedAmount;
     }
 
+    // This approach is out of date.
     /// @dev Why is borrowing forbidden for an hour after updating prices?
     function startBorrow() public { // If access is not restricted, this will be open to DoS attacks.
         Oracle(oracle).startTWAP();
