@@ -94,6 +94,7 @@ contract pyToken is ERC20 {
     struct Liquidation {
         bool lockedForLiquidation;
         address lockedBy;
+        uint256 id; //ID of oracle session
     }
 
     mapping(address => Repo) public repos; // Each user can have only one repo
@@ -404,22 +405,34 @@ contract pyToken is ERC20 {
         repos[msg.sender].userCollateral += collateralToUnLock;
     }
 
-    /**
-    function startLiquidation(address userToLiquidate) public {
-        require(repos[user].normalizedDebt > 0, "startLiquidiation/repo-has-no-debt");
-        pyOracle().read()
-        liquidations[user].lockedForLiquidation = true;
-        liquidations[user].lockedBy = msg.sender;
+    /// @dev Initiate liquidation of a repo
+   function startLiquidation(address userToLiquidate) public {
+        require(repos[userToLiquidate].normalizedDebt > 0, "startLiquidiation/repo-has-no-debt");
+        liquidations[userToLiquidate].id = pyOracle().startUniqueRead(); //force an oracle update, if not currently up to date. 
+        liquidations[userToLiquidate].lockedForLiquidation = true;
+        liquidations[userToLiquidate].lockedBy = msg.sender;
         //TODO: Lock Funds
     }
 
+    /// @dev Complete liquidation of a repo by sending it to auction or by removing from liquidation
     function completeLiquidation(address userToLiquidate) public {
-
-        uint256 price = pyOracle().read()
+        // TODO: require startLiquidation has been called
+        uint26 period = 3600;
+        uint256 price = pyOracle().endUniqueRead(liquidations[userToLiquidate], period);
         uint256 debt = fmul(repos[userToLiquidate].normalizedDebt, debtAccumulator, long) + amountToBorrow;
-        uint256 collateralNeeded = debt * collateralizationRatio / repos[msg.sender].lockedCollateral;
+        uint256 liquidationPrice = debt * collateralizationRatio / repos[msg.sender].lockedCollateral;
         if (price < liquidationPrice) {
+            // kick the vault into liquidiation
+            address liquidations;
+            Liquidations(liquidations).startAuction(
+                                            collateral,
+                                            repos[userToLiquidate].lockedCollateral
+                                            address(this),
+                                            debt
+                                        );
+
+        } else {
+            // liquidation is inappropriate
         }
     }
-    */
 }
