@@ -6,6 +6,7 @@ import "./pytokenFactory.sol";
 import "./pyoracle.sol";
 
 
+/// @dev Test ERC20 asset contract. When live this will have been deployed by a third party.
 contract Collateral is ERC20 {
     function mint(uint amount) public {
         _mint(msg.sender, amount);
@@ -14,6 +15,7 @@ contract Collateral is ERC20 {
 }
 
 
+/// @dev Test ERC20 asset contract. When live this will been deployed by a third party.
 contract Underlying is ERC20 {
     function mint(uint amount) public {
         _mint(msg.sender, amount);
@@ -21,7 +23,7 @@ contract Underlying is ERC20 {
     }
 }
 
-
+/// @dev Oracles return the price of an asset. This is a mock version.
 contract Oracle {
     uint256 public price;
 
@@ -37,48 +39,50 @@ contract Oracle {
 }
 
 
+/// @dev Perpetual Yield Token for an ERC20 token pair.
 contract pyToken is ERC20 {
     // definitions
-    uint short = 10**18;
-    uint long = 10**27;
+    uint short = 10**18; // Used for currency amounts
+    uint long = 10**27; // Used for mathematical variables
 
     // Token information
     string public name = "pyToken";
     string public symbol = "pY";
-    // uint8 public decimals = 18;
+    // uint8 public decimals = 18; // There should be no issue using decimals
 
     // Associated contracts
     address public underlying;
     address public collateral;
     address public oracle;
-    address public pairPyToken;
-    address private _creator;
+    address public pairPyToken; // pyTokens are deployed in pairs: ETH-DAI and DAI-ETH, for example.
+    address private _creator; // Let's use Ownable.
 
-    // interest parameters
-    uint256 public interestUpdateAmount;
-    uint256 public collateralizationRatio;
+    // interest parameters - All are short
+    uint256 public interestUpdateAmount; 
+    uint256 public collateralizationRatio; 
     uint256 public liquidityTarget;
     uint256 public adjustmentFreeWindow;
     uint256 public debtRateLimit;
     uint256 public borrowFee;
 
-    // Interest Rate variables
-    uint256 public rateAccumulator;
-    uint256 public debtAccumulator;
-    uint256 public debtRate;
-    uint256 public normalizedDebt;
-    uint256 public bonus;
+    // Interest Rate variables - are these all long?
+    uint256 public rateAccumulator; //long
+    uint256 public debtAccumulator; //long
+    uint256 public debtRate; //short
+    uint256 public normalizedDebt; //short
 
-    uint256 public totalFeeIncome;
-    uint256 public lastBlockInterest;
-    uint256 public lastBlockInterestPeriods;
-    uint256 public lastUpdate;
-    uint256 public lastRateUpdate;
+    uint256 public totalFeeIncome; // currency amount? yes, currency amounts are short
+    uint256 public lastBlockInterest; // long - actually, i think this is short
+    uint256 public lastBlockInterestPeriods; // integer number (not fixed point)
+    uint256 public lastUpdate; // timestamp
+    uint256 public lastRateUpdate; // timestamp
 
     // value held in contract
-    uint256 public underlyingHeld;
+    uint256 public underlyingHeld; // currency amount
 
     //repos
+    /// @dev Repurchase Agreement. userCollateral is transferred in exchange for lockedCollateral.
+    /// The transfer can be undone afterwards but the userCollateral returned is interest discounted.
     struct Repo {
         uint256 userCollateral;
         uint256 lockedCollateral;
@@ -86,13 +90,14 @@ contract pyToken is ERC20 {
         bool lockedForLiquidation;
     }
 
+    /// @dev User assets can be locked for liquidation, the proceedings from their forced sale used to pay outstanding debts.
     struct Liquidation {
         bool lockedForLiquidation;
         address lockedBy;
     }
 
-    mapping(address => Repo) public repos;
-    mapping(address => Liquidation) public liquidations;
+    mapping(address => Repo) public repos; // Each user can have only one repo
+    mapping(address => Liquidation) public liquidations; // All of an user's assets enter into liquidation.
 
     //Oracle
     uint256 constant ONE_HOUR = 60*60;
@@ -131,26 +136,29 @@ contract pyToken is ERC20 {
         _creator = msg.sender;
     }
 
+    /// @dev Set the address for the reverse pyToken contract
     function setPairPyToken(address _pyToken) public {
         require(msg.sender == _creator, "setPairPyToken/only-callable-by-factory");
         pairPyToken = _pyToken;
     }
 
     // Math functions
-    function simpleInterest(uint rate, uint exponent, uint unit) public returns(uint256) {
-        //uint256 half = unit / 2;
-        //return unit + rate * exponent + half*rate*rate*exponent*(exponent - 1)/(unit*unit);
-        return unit + (rate * exponent);
+    /// @dev Compounds interest for a number of periods using the binomial approximation 
+    function compoundInterestRate(uint rate, uint periods, uint unit) public returns(uint256) { // Rename exponent to periods?
+        return unit + (rate * periods);
     }
 
+    /// @dev Overflow protected multiplication
     function mul(uint x, uint y) public pure returns (uint z) {
         require(y == 0 || (z = x * y) / y == x);
     }
 
+    /// @dev Overflow protected fixed point multiplication with parameterized unit.
     function fmul(uint x, uint y, uint unit) public pure returns (uint z) {
         z = mul(x, y) / unit;
     }
 
+    /// @dev Divide and round up. Remove in the future--not used. 
     function preciseDiv(uint256 value, uint256 precision, uint256 divisor) public pure returns (uint z){
         z = ((value + precision/2) * precision)/divisor;
     }
@@ -159,7 +167,7 @@ contract pyToken is ERC20 {
     function transferUnderlying(address sender, address recipient, uint256 amount) public {
     }
 
-    // view functions
+    // view functions - all return currency amounts.
     function totalSupplyUnderlying() public view returns (uint256) {
         return fmul(totalSupply(), rateAccumulator, long);
     }
@@ -188,6 +196,7 @@ contract pyToken is ERC20 {
     }
 
     // pyToken creation and redemption
+    /// @dev Take underlying tokens from user, and mint pyTokens in exchange.
     function mint(uint256 amount) public returns (bool) {
         //accrueInterest();
         //updateRates();
@@ -199,6 +208,7 @@ contract pyToken is ERC20 {
         return true;
     }
 
+    /// @dev Burn pyTokens from user, and return underlying tokens in exchange.
     function redeem(uint256 amount) public returns (bool) {
         //accrueInterest();
         //updateRates();
@@ -211,6 +221,7 @@ contract pyToken is ERC20 {
         underlyingHeld -= amount;
     }
 
+    /// @dev Update the accrued interest and related variables, according to the number of seconds since the previous update.
     function accrueInterest() public {
         if (lastUpdate >= now || totalSupply() == 0) return;
         console.log("debtRate '%i'", debtRate);
@@ -243,6 +254,7 @@ contract pyToken is ERC20 {
         lastUpdate = now;
     }
 
+    /// @dev Update the rate at which interest is accrued
     function updateRates() public {
         if (lastRateUpdate >= now || totalSupply() == 0) return;
         uint256 imbalance = getReserveRatio();
@@ -261,6 +273,7 @@ contract pyToken is ERC20 {
         lastRateUpdate = now;
     }
 
+    /// @dev Allow user to store collateral in the pyToken contract
     function addCollateral(address user, uint256 amount) public {
         //accrueInterest();
         //updateRates();
@@ -272,6 +285,7 @@ contract pyToken is ERC20 {
         repos[user].userCollateral += amount;
     }
 
+    /// @dev Allow user to withdraw collateral from the pyToken contract
     function withdrawCollateral(address user, uint256 amount) public {
         //accrueInterest();
         //updateRates();
@@ -282,8 +296,8 @@ contract pyToken is ERC20 {
             "withdrawCollateral/failed-transfer"
         );
     }
-
-    // borrow by pointing to a valid repo with a lower liquidation price
+    
+    /// @dev Borrow by pointing to a valid repo with a lower liquidation price
     function borrowCompare(
         address comparisonRepo,
         address usr,
@@ -312,11 +326,14 @@ contract pyToken is ERC20 {
         normalizedDebt += normalizedAmount;
     }
 
-    function startBorrow() public {
+    // This approach is out of date.
+    /// @dev Why is borrowing forbidden for an hour after updating prices?
+    function startBorrow() public { // If access is not restricted, this will be open to DoS attacks.
         Oracle(oracle).startTWAP();
         startBorrowTime = now;
     }
 
+    /// @dev Setup or update a Repurchase Agreement
     function completeBorrow(address usr, uint256 amountToBorrow, uint256 collateralToLock) public {
         uint256 twapPrice = Oracle(oracle).endTWAP();
         require(
@@ -342,11 +359,13 @@ contract pyToken is ERC20 {
         normalizedDebt += normalizedAmount;
     }
 
+    /// @dev Let's move this one out of the contract.
     function mathTest(uint256 value) public {
         uint256 normalizedAmount = (value * long)/rateAccumulator;
         console.log("Normalized Amount '%i' Requested value '%i'", normalizedAmount, value);
     }
 
+    /// @dev Cancel part or all of a repo debt by burning pyTokens
     function repay(address usr, uint256 amountToPayback) public {
         uint256 normalizedPayback = (amountToPayback * long)/rateAccumulator;
         //console.log("Normalized payback '%i' Requested tokens '%i' BalanceOf '%i", normalizedPayback, amountToPayback, balanceOf(msg.sender));
@@ -363,15 +382,17 @@ contract pyToken is ERC20 {
         repos[usr].normalizedDebt -= debtCancelled;
     }
 
+    /// @dev Unlocking collateral to use in a repo needs the underlying asset prices.
     function startUnlock() public {
         Oracle(oracle).startTWAP();
         startUnlockTime = now;
     }
 
+    /// @dev Unlock collateral to use in a repo.
     function completeUnlock(uint256 collateralToUnLock) public {
         uint256 twapPrice = Oracle(oracle).endTWAP();
         require(
-            now - startBorrowTime > ONE_HOUR,
+            now - startBorrowTime > ONE_HOUR, // I think we mean startUnlockTime
             "completeUnlock/must-wait-an-hour-before-calling-completeUnlock"
         );
         uint256 availableCollateral = repos[msg.sender].lockedCollateral - collateralToUnLock;

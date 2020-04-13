@@ -23,6 +23,7 @@ contract pyTokenFactory {
         address pyToken
     );
 
+    /// @dev Set variables common for all pyTokens deployed through this factory.
     constructor (
         uint256 _interestUpdateAmount,
         uint256 _collateralizationRatio,
@@ -41,6 +42,7 @@ contract pyTokenFactory {
         liquidationsContract = _liquidationsContract;
     }
 
+    /// @dev Create a pyToken contract for two target tokens, and its reverse pyToken contract.
     function createPyToken(address token1, address token2)
         public returns (address, address) {
 
