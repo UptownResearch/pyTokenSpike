@@ -59,8 +59,8 @@ contract pyToken is ERC20 {
     address private _creator; // Let's use Ownable.
 
     // interest parameters - All are short
-    uint256 public interestUpdateAmount; 
-    uint256 public collateralizationRatio; 
+    uint256 public interestUpdateAmount;
+    uint256 public collateralizationRatio;
     uint256 public liquidityTarget;
     uint256 public adjustmentFreeWindow;
     uint256 public debtRateLimit;
@@ -144,7 +144,7 @@ contract pyToken is ERC20 {
     }
 
     // Math functions
-    /// @dev Compounds interest for a number of periods using the binomial approximation 
+    /// @dev Compounds interest for a number of periods using the binomial approximation
     function compoundInterestRate(uint rate, uint periods, uint unit) public returns(uint256) { // Rename exponent to periods?
         return unit + (rate * periods);
     }
@@ -159,7 +159,7 @@ contract pyToken is ERC20 {
         z = mul(x, y) / unit;
     }
 
-    /// @dev Divide and round up. Remove in the future--not used. 
+    /// @dev Divide and round up. Remove in the future--not used.
     function preciseDiv(uint256 value, uint256 precision, uint256 divisor) public pure returns (uint z){
         z = ((value + precision/2) * precision)/divisor;
     }
