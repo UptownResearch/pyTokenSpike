@@ -5,40 +5,7 @@ import "@hq20/contracts/contracts/math/DecimalMath.sol";
 import "@nomiclabs/buidler/console.sol";
 import "./pytokenFactory.sol";
 import "./pyoracle.sol";
-
-
-/// @dev Test ERC20 asset contract. When live this will have been deployed by a third party.
-contract Collateral is ERC20 {
-    function mint(uint amount) public {
-        _mint(msg.sender, amount);
-        console.log("Minting '%i' tokens", amount);
-    }
-}
-
-
-/// @dev Test ERC20 asset contract. When live this will been deployed by a third party.
-contract Underlying is ERC20 {
-    function mint(uint amount) public {
-        _mint(msg.sender, amount);
-        console.log("Minting '%i' tokens", amount);
-    }
-}
-
-/// @dev Oracles return the price of an asset. This is a mock version.
-contract Oracle {
-    uint256 public price;
-
-    function updatePrice(uint256 newPrice) public{
-        price = newPrice;
-    }
-
-    function startTWAP() public {}
-
-    function endTWAP() public returns (uint256) {
-        return price;
-    }
-}
-
+import "./mocks/Oracle.sol";
 
 /// @dev Perpetual Yield Token for an ERC20 token pair.
 contract pyToken is ERC20 {
