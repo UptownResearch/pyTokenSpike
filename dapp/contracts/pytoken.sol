@@ -9,9 +9,12 @@ import "./IOracle.sol";
 
 /// @dev Perpetual Yield Token for an ERC20 token pair.
 contract pyToken is ERC20 {
+    using DecimalMath for uint256;
+    using DecimalMath for uint8;
+
     // definitions
-    uint short = 10**18; // Used for currency amounts
-    uint long = 10**27; // Used for mathematical variables
+    uint8 short = 18; // Used for currency amounts
+    uint8 long = 27; // Used for mathematical variables
 
     // Token information
     string public name = "pyToken";
@@ -33,7 +36,7 @@ contract pyToken is ERC20 {
     uint256 public debtRateLimit;
     uint256 public borrowFee;
 
-    // Interest Rate variables - are these all long?
+    // Interest Rate variables - are these all long_unit?
     uint256 public rateAccumulator; //long
     uint256 public debtAccumulator; //long
     uint256 public debtRate; //short
@@ -94,12 +97,12 @@ contract pyToken is ERC20 {
         borrowFee = _borrowFee;
 
         totalFeeIncome = 0;
-        rateAccumulator = long;
-        debtAccumulator = long;
-        lastBlockInterest = long;
+        rateAccumulator = long.unit();
+        debtAccumulator = long.unit();
+        lastBlockInterest = long.unit();
         lastUpdate = now;
         lastRateUpdate = now;
-        debtRate = long;
+        debtRate = long.unit();
 
         _creator = msg.sender;
     }
@@ -116,40 +119,25 @@ contract pyToken is ERC20 {
         return unit + (rate * periods);
     }
 
-    /// @dev Overflow protected multiplication
-    function mul(uint x, uint y) public pure returns (uint z) {
-        require(y == 0 || (z = x * y) / y == x);
-    }
-
-    /// @dev Overflow protected fixed point multiplication with parameterized unit.
-    function fmul(uint x, uint y, uint unit) public pure returns (uint z) {
-        z = mul(x, y) / unit;
-    }
-
-    /// @dev Divide and round up. Remove in the future--not used.
-    function preciseDiv(uint256 value, uint256 precision, uint256 divisor) public pure returns (uint z){
-        z = ((value + precision/2) * precision)/divisor;
-    }
-
     // Transfer functions
     function transferUnderlying(address sender, address recipient, uint256 amount) public {
     }
 
     // view functions - all return currency amounts.
     function totalSupplyUnderlying() public view returns (uint256) {
-        return fmul(totalSupply(), rateAccumulator, long);
+        return DecimalMath.muld(totalSupply(), rateAccumulator, long);
     }
 
     function balanceOfUnderlying(address account) public view returns (uint){
-        return fmul(balanceOf(account), rateAccumulator, long);
+        return DecimalMath.muld(balanceOf(account), rateAccumulator, long);
     }
 
     function getTotalDebt() public view returns (uint256) {
-        return fmul(normalizedDebt, debtAccumulator, long);
+        return DecimalMath.muld(normalizedDebt, debtAccumulator, long);
     }
 
     function debtInUnderlying(address usr) public view returns (uint256){
-        return fmul(repos[usr].normalizedDebt, debtAccumulator, long);
+        return DecimalMath.muld(repos[usr].normalizedDebt, debtAccumulator, long);
     }
 
     function getCollateralBalance(address user) public view returns (uint256){
@@ -169,7 +157,7 @@ contract pyToken is ERC20 {
         //accrueInterest();
         //updateRates();
         require(ERC20(underlying).transferFrom(msg.sender, address(this), amount), "mint/failed-transfer");
-        uint256 normalizedAmount = (amount * long)/rateAccumulator;
+        uint256 normalizedAmount = (amount * long.unit())/rateAccumulator;
         _mint(msg.sender, normalizedAmount);
 
         underlyingHeld += amount;
@@ -183,7 +171,7 @@ contract pyToken is ERC20 {
         require(amount >= 0, "redeem/cannot-redeem-negative amount");
         require(underlyingHeld >= amount, "redeem/cannot-redeem-more-than-reserves");
         require(balanceOfUnderlying(msg.sender) >= amount, "redeem/amount-exceeds-funds");
-        uint256 normalizedAmount = (amount * long)/rateAccumulator;
+        uint256 normalizedAmount = (amount * long.unit())/rateAccumulator;
         _burn(msg.sender, normalizedAmount);
         require(ERC20(underlying).transfer(msg.sender, amount), "redeem/failed-transfer");
         underlyingHeld -= amount;
@@ -196,27 +184,27 @@ contract pyToken is ERC20 {
         console.log("Time");
         uint256 periods = now - lastUpdate;
         console.log(periods);
-        uint256 accumulatedDebtInterestMultiplier = compoundInterestRate(debtRate - long, periods, long);
+        uint256 accumulatedDebtInterestMultiplier = compoundInterestRate(debtRate - long.unit(), periods, long.unit());
         console.log("ADIMs '%i'", accumulatedDebtInterestMultiplier);
         console.log("DebtAccumulator    '%i'", debtAccumulator);
         // uint256 oldDebtAccumulator = debtAccumulator;
-        debtAccumulator = fmul(accumulatedDebtInterestMultiplier, debtAccumulator, long);
+        debtAccumulator = DecimalMath.muld(accumulatedDebtInterestMultiplier, debtAccumulator, long);
         console.log("DebtAccumulator    '%i'", debtAccumulator);
-        uint256 allDebt = fmul(normalizedDebt, debtAccumulator, short);
+        uint256 allDebt = DecimalMath.muld(normalizedDebt, debtAccumulator, short);
         console.log("All Debt    '%i'", allDebt);
-        uint256 newDebt = fmul(accumulatedDebtInterestMultiplier - long, allDebt, long);
+        uint256 newDebt = DecimalMath.muld(accumulatedDebtInterestMultiplier - long.unit(), allDebt, long);
         console.log("New Debt    '%i'", newDebt);
-        // uint256 newDebt2 = fmul(debtAccumulator - oldDebtAccumulator, normalizedDebt, short);
+        // uint256 newDebt2 = DecimalMath.muld(debtAccumulator - oldDebtAccumulator, normalizedDebt, short);
         console.log("New Debt 2    '%i'", newDebt);
-        uint256 feeIncome = fmul(newDebt, borrowFee, short);
+        uint256 feeIncome = DecimalMath.muld(newDebt, borrowFee, short);
         totalFeeIncome += feeIncome;
         console.log("Fee Income '%i'", feeIncome);
-        uint256 totalPyTokens = fmul(totalSupply(), rateAccumulator, short);
+        uint256 totalPyTokens = DecimalMath.muld(totalSupply(), rateAccumulator, short);
         console.log("Total pyTokens '%i'", totalPyTokens);
-        rateAccumulator = (((newDebt - feeIncome) + totalPyTokens)*long) / fmul(totalSupply(), long, short);
+        rateAccumulator = (((newDebt - feeIncome) + totalPyTokens)*long.unit()) / DecimalMath.muld(totalSupply(), long.unit(), short);
         console.log("Total Supply '%i'", totalSupply());
         console.log("Rate Accumulator '%i'", rateAccumulator);
-        lastBlockInterest = (((newDebt - feeIncome) + totalPyTokens)*long) / totalPyTokens;
+        lastBlockInterest = (((newDebt - feeIncome) + totalPyTokens)*long.unit()) / totalPyTokens;
         lastBlockInterestPeriods = periods;
         console.log("Last Block Interest '%i'", lastBlockInterest);
         lastUpdate = now;
@@ -232,11 +220,11 @@ contract pyToken is ERC20 {
         else updateRate = 0;
         console.log("Update Rate");
         console.logInt(updateRate);
-        debtRate = fmul(debtRate, uint256(int(long) + updateRate), long);
+        debtRate = DecimalMath.muld(debtRate, uint256(int(long.unit()) + updateRate), long);
         console.log("debtRate '%i'", debtRate);
-        if (debtRate < long) debtRate = long;     // debtRate must not go below 1.0
+        if (debtRate < long.unit()) debtRate = long.unit();     // debtRate must not go below 1.0
         if (debtRate > debtRateLimit) debtRate = debtRateLimit;
-        if (normalizedDebt == 0) debtRate = long;
+        if (normalizedDebt == 0) debtRate = long.unit();
         console.log("debtRate '%i'", debtRate);
         lastRateUpdate = now;
     }
@@ -282,14 +270,14 @@ contract pyToken is ERC20 {
         );
         // how are we handling collateral decimals?
         uint256 availableCollateral = repos[msg.sender].lockedCollateral + collateralToLock;
-        uint256 finalDebt = fmul(repos[msg.sender].normalizedDebt, debtAccumulator, long) + amountToBorrow;
+        uint256 finalDebt = DecimalMath.muld(repos[msg.sender].normalizedDebt, debtAccumulator, long) + amountToBorrow;
         uint256 usrRatio = finalDebt/availableCollateral;
-        uint256 compRatio = fmul(repos[comparisonRepo].normalizedDebt, debtAccumulator, long) / repos[comparisonRepo].lockedCollateral;
+        uint256 compRatio = DecimalMath.muld(repos[comparisonRepo].normalizedDebt, debtAccumulator, long) / repos[comparisonRepo].lockedCollateral;
         require(usrRatio < compRatio, "borrowCompare/comparison-to-comparison-repo-not-successful");
         repos[msg.sender].normalizedDebt = repos[msg.sender].normalizedDebt + amountToBorrow/debtAccumulator;
         repos[msg.sender].lockedCollateral += collateralToLock;
         repos[msg.sender].userCollateral -= collateralToLock;
-        uint256 normalizedAmount = (amountToBorrow * long)/rateAccumulator;
+        uint256 normalizedAmount = (amountToBorrow * long.unit())/rateAccumulator;
         _mint(msg.sender, normalizedAmount);
         normalizedDebt += normalizedAmount;
     }
@@ -314,14 +302,14 @@ contract pyToken is ERC20 {
         );
         // how are we handling collateral decimals?
         uint256 availableCollateral = repos[msg.sender].lockedCollateral + collateralToLock;
-        uint256 finalDebt = fmul(repos[msg.sender].normalizedDebt, debtAccumulator, long) + amountToBorrow;
+        uint256 finalDebt = DecimalMath.muld(repos[msg.sender].normalizedDebt, debtAccumulator, long) + amountToBorrow;
         uint256 collateralNeeded = finalDebt * collateralizationRatio / twapPrice;
         console.log("collateralNeeded '%i' availableCollateral '%i'", collateralNeeded, availableCollateral);
         require(collateralNeeded <= availableCollateral, "completeBorrow/insufficient-collateral-for-new-debt");
-        repos[msg.sender].normalizedDebt = repos[msg.sender].normalizedDebt + (amountToBorrow * long)/debtAccumulator;
+        repos[msg.sender].normalizedDebt = repos[msg.sender].normalizedDebt + (amountToBorrow * long.unit())/debtAccumulator;
         repos[msg.sender].lockedCollateral += collateralToLock;
         repos[msg.sender].userCollateral -= collateralToLock;
-        uint256 normalizedAmount = (amountToBorrow * long)/rateAccumulator;
+        uint256 normalizedAmount = (amountToBorrow * long.unit())/rateAccumulator;
         //console.log("Normalized tokens '%i' Requested tokens '%i'", normalizedAmount, amountToBorrow);
         _mint(msg.sender, normalizedAmount);
         normalizedDebt += normalizedAmount;
@@ -329,20 +317,20 @@ contract pyToken is ERC20 {
 
     /// @dev Let's move this one out of the contract.
     function mathTest(uint256 value) public {
-        uint256 normalizedAmount = (value * long)/rateAccumulator;
+        uint256 normalizedAmount = (value * long.unit())/rateAccumulator;
         console.log("Normalized Amount '%i' Requested value '%i'", normalizedAmount, value);
     }
 
     /// @dev Cancel part or all of a repo debt by burning pyTokens
     function repay(address usr, uint256 amountToPayback) public {
-        uint256 normalizedPayback = (amountToPayback * long)/rateAccumulator;
+        uint256 normalizedPayback = (amountToPayback * long.unit())/rateAccumulator;
         //console.log("Normalized payback '%i' Requested tokens '%i' BalanceOf '%i", normalizedPayback, amountToPayback, balanceOf(msg.sender));
         require(
             balanceOf(msg.sender) >= normalizedPayback,
             "repay/insufficient-funds-to-repay"
         );
         _burn(msg.sender, normalizedPayback);
-        uint256 debtCancelled = (amountToPayback * long) / debtAccumulator;
+        uint256 debtCancelled = (amountToPayback * long.unit()) / debtAccumulator;
         require(
             repos[usr].normalizedDebt >= debtCancelled,
             "repay/cannot-repay-more-than-debt"
@@ -364,7 +352,7 @@ contract pyToken is ERC20 {
             "completeUnlock/must-wait-an-hour-before-calling-completeUnlock"
         );
         uint256 availableCollateral = repos[msg.sender].lockedCollateral - collateralToUnLock;
-        uint256 finalDebt = fmul(repos[msg.sender].normalizedDebt, debtAccumulator, long);
+        uint256 finalDebt = DecimalMath.muld(repos[msg.sender].normalizedDebt, debtAccumulator, long);
         uint256 collateralNeeded = finalDebt * collateralizationRatio / twapPrice;
         console.log("finalDebt '%i' collateralNeeded '%i'", finalDebt, collateralNeeded);
         require(availableCollateral >= collateralNeeded, "completeUnlock/insufficient-collateral-to-complete-unlock");
@@ -384,7 +372,7 @@ contract pyToken is ERC20 {
     function completeLiquidation(address userToLiquidate) public {
 
         uint256 price = pyOracle().read()
-        uint256 debt = fmul(repos[userToLiquidate].normalizedDebt, debtAccumulator, long) + amountToBorrow;
+        uint256 debt = DecimalMath.muld(repos[userToLiquidate].normalizedDebt, debtAccumulator, long) + amountToBorrow;
         uint256 collateralNeeded = debt * collateralizationRatio / repos[msg.sender].lockedCollateral;
         if (price < liquidationPrice) {
         }
