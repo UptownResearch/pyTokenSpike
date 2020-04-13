@@ -1,6 +1,7 @@
 pragma solidity ^0.5.1;
 
-import "openzeppelin-solidity/contracts/token/ERC20/ERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import "@hq20/contracts/contracts/math/DecimalMath.sol";
 import "@nomiclabs/buidler/console.sol";
 import "./pytokenFactory.sol";
 import "./pyoracle.sol";
@@ -228,7 +229,7 @@ contract pyToken is ERC20 {
         console.log("Time");
         uint256 periods = now - lastUpdate;
         console.log(periods);
-        uint256 accumulatedDebtInterestMultiplier = simpleInterest(debtRate - long, periods, long);
+        uint256 accumulatedDebtInterestMultiplier = compoundInterestRate(debtRate - long, periods, long);
         console.log("ADIMs '%i'", accumulatedDebtInterestMultiplier);
         console.log("DebtAccumulator    '%i'", debtAccumulator);
         // uint256 oldDebtAccumulator = debtAccumulator;
