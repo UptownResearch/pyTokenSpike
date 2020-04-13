@@ -5,7 +5,7 @@ import "@hq20/contracts/contracts/math/DecimalMath.sol";
 import "@nomiclabs/buidler/console.sol";
 import "./pytokenFactory.sol";
 import "./pyoracle.sol";
-import "./mocks/Oracle.sol";
+import "./IOracle.sol";
 
 /// @dev Perpetual Yield Token for an ERC20 token pair.
 contract pyToken is ERC20 {
@@ -297,13 +297,13 @@ contract pyToken is ERC20 {
     // This approach is out of date.
     /// @dev Why is borrowing forbidden for an hour after updating prices?
     function startBorrow() public { // If access is not restricted, this will be open to DoS attacks.
-        Oracle(oracle).startTWAP();
+        IOracle(oracle).startTWAP();
         startBorrowTime = now;
     }
 
     /// @dev Setup or update a Repurchase Agreement
     function completeBorrow(address usr, uint256 amountToBorrow, uint256 collateralToLock) public {
-        uint256 twapPrice = Oracle(oracle).endTWAP();
+        uint256 twapPrice = IOracle(oracle).endTWAP();
         require(
             now - startBorrowTime > ONE_HOUR,
             "completeBorrow/must-wait-an-hour-before-calling-completeBorrow"
@@ -352,13 +352,13 @@ contract pyToken is ERC20 {
 
     /// @dev Unlocking collateral to use in a repo needs the underlying asset prices.
     function startUnlock() public {
-        Oracle(oracle).startTWAP();
+        IOracle(oracle).startTWAP();
         startUnlockTime = now;
     }
 
     /// @dev Unlock collateral to use in a repo.
     function completeUnlock(uint256 collateralToUnLock) public {
-        uint256 twapPrice = Oracle(oracle).endTWAP();
+        uint256 twapPrice = IOracle(oracle).endTWAP();
         require(
             now - startBorrowTime > ONE_HOUR, // I think we mean startUnlockTime
             "completeUnlock/must-wait-an-hour-before-calling-completeUnlock"
