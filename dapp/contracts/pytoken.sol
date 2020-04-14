@@ -117,7 +117,7 @@ contract pyToken is ERC20 {
 
     // Math functions
     /// @dev Compounds interest for a number of periods using the binomial approximation
-    function compoundInterestRate(uint rate, uint periods, uint unit) public returns(uint256) { // Rename exponent to periods?
+    function compoundInterestRate(uint rate, uint periods, uint unit) public returns(uint256) {
         return unit + (rate * periods);
     }
 
@@ -163,7 +163,6 @@ contract pyToken is ERC20 {
         require(ERC20(underlying).transferFrom(msg.sender, address(this), amount), "mint/failed-transfer");
         uint256 normalizedAmount = amount.divd(rateAccumulator, long);
         _mint(msg.sender, normalizedAmount);
-
         underlyingHeld += amount;
         return true;
     }
@@ -184,33 +183,21 @@ contract pyToken is ERC20 {
     /// @dev Update the accrued interest and related variables, according to the number of seconds since the previous update.
     function accrueInterest() public {
         if (lastUpdate >= now || totalSupply() == 0) return;
-        // console.log("debtRate '%i'", debtRate);
-        // console.log("Time");
         uint256 periods = now - lastUpdate;
-        // console.log(periods);
         uint256 accumulatedDebtInterestMultiplier = compoundInterestRate(debtRate - longUnit, periods, longUnit);
-        // console.log("ADIMs '%i'", accumulatedDebtInterestMultiplier);
-        // console.log("DebtAccumulator    '%i'", debtAccumulator);
-        // uint256 oldDebtAccumulator = debtAccumulator;
         debtAccumulator = accumulatedDebtInterestMultiplier.muld(debtAccumulator, long);
-        // console.log("DebtAccumulator    '%i'", debtAccumulator);
         uint256 allDebt = normalizedDebt.muld(debtAccumulator, short);
-        // console.log("All Debt    '%i'", allDebt);
-        uint256 newDebt = (accumulatedDebtInterestMultiplier - longUnit).muld(allDebt, long); // Split in two lines.
-        // console.log("New Debt    '%i'", newDebt);
-        // uint256 newDebt2 = (debtAccumulator - oldDebtAccumulator).muld(normalizedDebt, short);
-        // console.log("New Debt 2    '%i'", newDebt);
+        uint256 newDebt = (accumulatedDebtInterestMultiplier - longUnit)
+            .muld(allDebt, long);
         uint256 feeIncome = newDebt.muld(borrowFee, short);
         totalFeeIncome += feeIncome;
-        // console.log("Fee Income '%i'", feeIncome);
         uint256 totalPyTokens = totalSupply().muld(rateAccumulator, short);
-        // console.log("Total pyTokens '%i'", totalPyTokens);
-        rateAccumulator = ((newDebt - feeIncome) + totalPyTokens).divd(totalSupply().muld(longUnit, short), long); // Split in three lines
-        // console.log("Total Supply '%i'", totalSupply());
-        // console.log("Rate Accumulator '%i'", rateAccumulator);
-        lastBlockInterest = ((newDebt - feeIncome) + totalPyTokens).divd(totalPyTokens, long); // Split in two lines
+        rateAccumulator = ((newDebt - feeIncome) + totalPyTokens)
+            .divd(totalSupply()
+            .muld(longUnit, short), long);
+        lastBlockInterest = ((newDebt - feeIncome) + totalPyTokens)
+            .divd(totalPyTokens, long);
         lastBlockInterestPeriods = periods;
-        // console.log("Last Block Interest '%i'", lastBlockInterest);
         lastUpdate = now;
     }
 
@@ -222,14 +209,11 @@ contract pyToken is ERC20 {
         if (imbalance > liquidityTarget)            updateRate = -int(interestUpdateAmount);
         else if (imbalance < liquidityTarget) updateRate = int(interestUpdateAmount);
         else updateRate = 0;
-        // console.log("Update Rate");
         console.logInt(updateRate);
         debtRate = debtRate.muld(uint256(int(longUnit) + updateRate), long);
-        // console.log("debtRate '%i'", debtRate);
         if (debtRate < longUnit) debtRate = longUnit;     // debtRate must not go below 1.0
         if (debtRate > debtRateLimit) debtRate = debtRateLimit;
         if (normalizedDebt == 0) debtRate = longUnit;
-        // console.log("debtRate '%i'", debtRate);
         lastRateUpdate = now;
     }
 
@@ -256,7 +240,8 @@ contract pyToken is ERC20 {
             "withdrawCollateral/failed-transfer"
         );
     }
-    
+
+    /**  Likely won't use this approach -- marking for future removal
     /// @dev Borrow by pointing to a valid repo with a lower liquidation price
     function borrowCompare(
         address comparisonRepo,
@@ -276,7 +261,8 @@ contract pyToken is ERC20 {
         uint256 availableCollateral = repos[msg.sender].lockedCollateral + collateralToLock;
         uint256 finalDebt = repos[msg.sender].normalizedDebt.muld(debtAccumulator, long) + amountToBorrow;
         uint256 usrRatio = finalDebt/availableCollateral;
-        uint256 compRatio = repos[comparisonRepo].normalizedDebt.muld(debtAccumulator, long) / repos[comparisonRepo].lockedCollateral;
+        uint256 compRatio = repos[comparisonRepo].normalizedDebt.muld(debtAccumulator, long) /
+            repos[comparisonRepo].lockedCollateral;
         require(usrRatio < compRatio, "borrowCompare/comparison-to-comparison-repo-not-successful");
         repos[msg.sender].normalizedDebt = repos[msg.sender].normalizedDebt + amountToBorrow/debtAccumulator;
         repos[msg.sender].lockedCollateral += collateralToLock;
@@ -285,6 +271,7 @@ contract pyToken is ERC20 {
         _mint(msg.sender, normalizedAmount);
         normalizedDebt += normalizedAmount;
     }
+    */
 
     // This approach is out of date.
     /// @dev Why is borrowing forbidden for an hour after updating prices?
@@ -308,27 +295,19 @@ contract pyToken is ERC20 {
         uint256 availableCollateral = repos[msg.sender].lockedCollateral + collateralToLock;
         uint256 finalDebt = repos[msg.sender].normalizedDebt.muld(debtAccumulator, long) + amountToBorrow;
         uint256 collateralNeeded = finalDebt * collateralizationRatio / twapPrice;
-        // console.log("collateralNeeded '%i' availableCollateral '%i'", collateralNeeded, availableCollateral);
         require(collateralNeeded <= availableCollateral, "completeBorrow/insufficient-collateral-for-new-debt");
-        repos[msg.sender].normalizedDebt = repos[msg.sender].normalizedDebt + (amountToBorrow * longUnit)/debtAccumulator;
+        repos[msg.sender].normalizedDebt = repos[msg.sender].normalizedDebt +
+            (amountToBorrow * longUnit)/debtAccumulator;
         repos[msg.sender].lockedCollateral += collateralToLock;
         repos[msg.sender].userCollateral -= collateralToLock;
         uint256 normalizedAmount = amountToBorrow.divd(rateAccumulator, long);
-        //// console.log("Normalized tokens '%i' Requested tokens '%i'", normalizedAmount, amountToBorrow);
         _mint(msg.sender, normalizedAmount);
         normalizedDebt += normalizedAmount;
-    }
-
-    /// @dev Let's move this one out of the contract.
-    function mathTest(uint256 value) public {
-        uint256 normalizedAmount = value.divd(rateAccumulator, long);
-        // console.log("Normalized Amount '%i' Requested value '%i'", normalizedAmount, value);
     }
 
     /// @dev Cancel part or all of a repo debt by burning pyTokens
     function repay(address usr, uint256 amountToPayback) public {
         uint256 normalizedPayback = amountToPayback.divd(rateAccumulator, long);
-        //// console.log("Normalized payback '%i' Requested tokens '%i' BalanceOf '%i", normalizedPayback, amountToPayback, balanceOf(msg.sender));
         require(
             balanceOf(msg.sender) >= normalizedPayback,
             "repay/insufficient-funds-to-repay"
@@ -352,34 +331,14 @@ contract pyToken is ERC20 {
     function completeUnlock(uint256 collateralToUnLock) public {
         uint256 twapPrice = IOracle(oracle).endTWAP();
         require(
-            now - startBorrowTime > ONE_HOUR, // I think we mean startUnlockTime
+            now - startUnlockTime > ONE_HOUR, // I think we mean startUnlockTime
             "completeUnlock/must-wait-an-hour-before-calling-completeUnlock"
         );
         uint256 availableCollateral = repos[msg.sender].lockedCollateral - collateralToUnLock;
         uint256 finalDebt = repos[msg.sender].normalizedDebt.muld(debtAccumulator, long);
         uint256 collateralNeeded = finalDebt * collateralizationRatio / twapPrice;
-        // console.log("finalDebt '%i' collateralNeeded '%i'", finalDebt, collateralNeeded);
         require(availableCollateral >= collateralNeeded, "completeUnlock/insufficient-collateral-to-complete-unlock");
         repos[msg.sender].lockedCollateral -= collateralToUnLock;
         repos[msg.sender].userCollateral += collateralToUnLock;
     }
-
-    /**
-    function startLiquidation(address userToLiquidate) public {
-        require(repos[user].normalizedDebt > 0, "startLiquidiation/repo-has-no-debt");
-        pyOracle().read()
-        liquidations[user].lockedForLiquidation = true;
-        liquidations[user].lockedBy = msg.sender;
-        //TODO: Lock Funds
-    }
-
-    function completeLiquidation(address userToLiquidate) public {
-
-        uint256 price = pyOracle().read()
-        uint256 debt = repos[userToLiquidate].normalizedDebt.muld(debtAccumulator, long) + amountToBorrow;
-        uint256 collateralNeeded = debt * collateralizationRatio / repos[msg.sender].lockedCollateral;
-        if (price < liquidationPrice) {
-        }
-    }
-    */
 }
