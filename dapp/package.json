@@ -21,8 +21,9 @@
     "web3": "^1.2.6"
   },
   "dependencies": {
+    "@hq20/contracts": "^0.0.3",
+    "@openzeppelin/contracts": "^2.5.0",
     "builder": "^5.0.0",
-    "openzeppelin-solidity": "^2.5.0",
     "root": "github:nomiclabs/buidler#v1.2.0"
   }
 }
